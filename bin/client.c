@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
     struct addrinfo *res = NULL;
     int gai_err;
     struct addrinfo hint = {
-        .ai_family = AF_UNSPEC,
+        .ai_family = AF_INET,
         .ai_socktype = SOCK_STREAM
     };
 
@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
     }
     struct sockaddr *relay_addr = (struct sockaddr *)res->ai_addr;
 
-    int sock = socket(AF_UNSPEC, SOCK_STREAM, 0);
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("Cannot create socket\n");
         return 1;
