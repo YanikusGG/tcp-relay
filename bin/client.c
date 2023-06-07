@@ -35,47 +35,64 @@ int main(int argc, char *argv[]) {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("Cannot create socket\n");
+        freeaddrinfo(res);
         return 1;
     }
     if (argv[3][0] == 'a') {
         int id = relay_register(sock, relay_addr);
         if (id == -1) {
             fprintf(stderr, "relay_register failed\n");
+            freeaddrinfo(res);
             return 1;
         }
         printf("id: %d\n", id);
+
         struct sockaddr *peer_addr = calloc(sizeof(*peer_addr), 1);
         if (relay_accept(sock, peer_addr)) {
             fprintf(stderr, "relay_accept error\n");
+            freeaddrinfo(res);
+            free(peer_addr);
             return 1;
         }
 
         char buff[4] = "test";
         if (write(sock, buff, 4) != 4) {
             fprintf(stderr, "write failed\n");
+            freeaddrinfo(res);
+            free(peer_addr);
             return 1;
         }
+
+        freeaddrinfo(res);
+        free(peer_addr);
         return 0;
     } else if (argv[3][0] == 'c') {
         int id;
         if (scanf("%d", &id) != 1) {
             fprintf(stderr, "scanf error\n");
+            freeaddrinfo(res);
             return 1;
         }
 
         struct sockaddr *peer_addr = calloc(sizeof(*peer_addr), 1);
         if (relay_connect(sock, id, relay_addr, peer_addr)) {
             fprintf(stderr, "relay_connect error\n");
+            freeaddrinfo(res);
+            free(peer_addr);
             return 1;
         }
 
         char buff[4];
         if (read(sock, buff, 4) != 4) {
             fprintf(stderr, "read error\n");
+            freeaddrinfo(res);
+            free(peer_addr);
             return 1;
         }
+
+        freeaddrinfo(res);
+        free(peer_addr);
         return 0;
     }
-
     return 0;
 }
