@@ -9,11 +9,14 @@
 #include <stdlib.h>
 
 #include "relay_server.h"
+#define MAX_ROOMS 65535
 
-conn_t host_conn[1024];
-conn_t client_conn[1024];
+conn_t* host_conn[MAX_ROOMS];
+conn_t* client_conn[MAX_ROOMS];
 
 int create_server(char *port) {
+    memset(host_conn, sizeof(host_conn), 0);
+    memset(client_conn, sizeof(client_conn), 0);
     struct addrinfo *res = NULL;
     struct addrinfo hint = {
         .ai_family = AF_UNSPEC,
@@ -84,6 +87,8 @@ void listen_loop(int socket_fd, int epoll_fd) {
                 }
                 conn_t *conn = malloc(sizeof(conn_t));
                 conn->left = client_conn;
+                conn->left_addr = addr_tcp;
+                conn->right = -1;
                 conn->fd = client_conn;
                 ev.events = EPOLLIN | EPOLLET;
                 ev.data.ptr = conn;
@@ -94,17 +99,47 @@ void listen_loop(int socket_fd, int epoll_fd) {
                 }
 
             }
-            conn_t *conn = (conn_t*)(events[ev_idx].data.ptr);
+            conn_t *conn = (conn_t*)(ev.data.ptr);
             printf("%d %d %d\n", conn->fd, conn->left, conn->right);
-            if (events[ev_idx].events == EPOLLIN) {
-                printf("epoll in\n");
-                char buf[1024];
-                int ret_i = recv(conn->fd, buf, sizeof(buf), 0);
-                if (ret_i < 0) {
-                    perror("recv");
-                    break;
+            if (conn->right == -1) {
+                if (events[ev_idx].events == EPOLLIN) {
+                    printf("epoll in\n");
+                    char buf[1024];
+                    int ret_i = recv(conn->fd, buf, sizeof(buf), 0);
+                    if (ret_i < 0) {
+                        perror("recv");
+                        break;
+                    }
+                    char flag = buf[0];
+                    int id = *(int*)(buf + 1);
+                    if (flag == 1) {
+                        // REGISTER
+                        printf("Register %d \n", id % MAX_ROOMS);
+                        host_conn[id % MAX_ROOMS] = conn;
+                    } else {
+                        // CONNECT
+                        printf("Connect %d \n", id % MAX_ROOMS);
+                        client_conn[id % MAX_ROOMS] = conn;
+                        host_conn[id % MAX_ROOMS]->right = conn->left;
+                        client_conn[id % MAX_ROOMS]->right = host_conn[id % MAX_ROOMS]->left;
+                        host_conn[id % MAX_ROOMS]->right_addr = conn->left_addr;
+                        client_conn[id % MAX_ROOMS]->right_addr = host_conn[id % MAX_ROOMS]->left_addr;
+
+                        int ls = send(host_conn[id % MAX_ROOMS]->left, &host_conn[id % MAX_ROOMS]->right_addr, sizeof(host_conn[id % MAX_ROOMS]->right_addr), 0);
+                        if (ls < 0) {
+                            perror("send");
+                            return 1;
+                        }
+
+                        int rs = send(host_conn[id % MAX_ROOMS]->right, &host_conn[id % MAX_ROOMS]->left_addr, sizeof(host_conn[id % MAX_ROOMS]->left_addr), 0);
+                        if (rs < 0) {
+                            perror("send");
+                            return 1;
+                        }
+                    }
                 }
-                printf("ready to send");
+            } else {
+                // RECEIVE FROM KNOWN ROOM
             }
         }
     }

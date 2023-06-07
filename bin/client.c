@@ -92,13 +92,28 @@ int main(int argc, char *argv[]) {
         }
 
         while (1) {
+            printf("READ\n");
             char buff[BUFF_SIZE] = {0};
-            int cnt = read(sock, buff, BUFF_SIZE);
+            int cnt = scanf("%s", buff);
             if (cnt <= 0) {
-                fprintf(stderr, "INFO::Connect client finished reading\n");
                 break;
             }
+
+            if (write(sock, buff, cnt) != cnt) {
+                fprintf(stderr, "write failed\n");
+                freeaddrinfo(res);
+                free(peer_addr);
+                return 1;
+            }
         }
+        // while (1) {
+        //     char buff[BUFF_SIZE] = {0};
+        //     int cnt = read(sock, buff, BUFF_SIZE);
+        //     if (cnt <= 0) {
+        //         fprintf(stderr, "INFO::Connect client finished reading\n");
+        //         break;
+        //     }
+        // }
 
         freeaddrinfo(res);
         free(peer_addr);
