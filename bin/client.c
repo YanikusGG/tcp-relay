@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         return 0;
-    } else if (argv[3][0] == 'v') {
+    } else if (argv[3][0] == 'c') {
         int id;
         if (scanf("%d", &id) != 1) {
             fprintf(stderr, "scanf error\n");
