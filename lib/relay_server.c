@@ -12,8 +12,8 @@ int create_server(char *port) {
     struct addrinfo *res = NULL;
     struct addrinfo hint = {
         .ai_family = AF_UNSPEC,
-        .ai_socktype = SOCK_DGRAM,
-        .ai_flags = 0,
+        .ai_socktype = SOCK_STREAM,
+        .ai_flags = AI_PASSIVE,
     };
     int gai_err = getaddrinfo(NULL, port, &hint, &res);
     if (gai_err) {
