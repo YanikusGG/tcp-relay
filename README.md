@@ -12,4 +12,5 @@ TCP relay client and server
 
 ## Usage
 `./server <port>` to execute tcp relay server
+
 `./client <relay_ip> <relay_port> <a/c>` to execute relay client (a = accept, c = connect)
