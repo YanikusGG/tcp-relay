@@ -1,13 +1,14 @@
 #include <fcntl.h>
 #include <netdb.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <sys/signalfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <signal.h>
 
 #include "relay_server.h"
 
@@ -16,34 +17,7 @@
 conn_t *host_conn[MAX_ROOMS];
 conn_t *client_conn[MAX_ROOMS];
 
-void on_signal(int sig) {
-    if (sig == SIGINT || sig == SIGTERM) {
-        for (int i=0; i<MAX_ROOMS; i++) {
-            if (host_conn[i]) {
-                if (host_conn[i]->fd) {
-                    close(host_conn[i]->fd);
-                }
-                free(host_conn[i]);
-            }
-            if (client_conn[i]) {
-                if (client_conn[i]->fd) {
-                    close(client_conn[i]->fd);
-                }
-                free(client_conn[i]);
-            }
-        }
-        exit(0);
-    }
-}
-
 int create_server(char *port) {
-    struct sigaction sa = {
-        .sa_handler = on_signal,
-        .sa_flags = SA_RESTART,
-    };
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
-
     struct addrinfo *res = NULL;
     struct addrinfo hint = {
         .ai_family = AF_UNSPEC,
@@ -80,10 +54,18 @@ int create_server(char *port) {
     return sock;
 }
 
-void listen_loop(int socket_fd, int epoll_fd) {
+void listen_loop(int socket_fd, int epoll_fd, int signal_fd) {
     struct epoll_event events[16];
     struct sockaddr_in addr_tcp;
     struct epoll_event ev;
+
+    struct epoll_event sig_event;
+    sig_event.data.fd = signal_fd;
+    sig_event.events = EPOLLIN;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, signal_fd, &sig_event) == -1) {
+        perror("epoll_ctl");
+        return;
+    }
 
     while (1) {
         int event_cnt = epoll_wait(epoll_fd, events, 16, -1);
@@ -92,6 +74,28 @@ void listen_loop(int socket_fd, int epoll_fd) {
             break;
         }
         for (int ev_idx = 0; ev_idx < event_cnt; ev_idx++) {
+            if (events[ev_idx].data.fd == signal_fd) {
+                // signal to terminate
+                for (int i = 0; i < MAX_ROOMS; i++) {
+                    if (host_conn[i]) {
+                        if (host_conn[i]->fd) {
+                            close(host_conn[i]->fd);
+                        }
+                        free(host_conn[i]);
+                    }
+                    if (client_conn[i]) {
+                        if (client_conn[i]->fd) {
+                            close(client_conn[i]->fd);
+                        }
+                        free(client_conn[i]);
+                    }
+                }
+                close(socket_fd);
+                close(epoll_fd);
+                close(signal_fd);
+                exit(0);
+            }
+
             if (events[ev_idx].data.fd == socket_fd) {
                 // new connection
                 printf("new connection\n");
@@ -132,7 +136,8 @@ void listen_loop(int socket_fd, int epoll_fd) {
                 ev = events[ev_idx];
             }
             conn_t *conn = (conn_t *)(ev.data.ptr);
-            printf("event fd=%d left=%d right=%d\n", conn->fd, conn->left, conn->right);
+            printf("event fd=%d left=%d right=%d\n", conn->fd, conn->left,
+                   conn->right);
             if (conn->right == -1) {
                 if (events[ev_idx].events == EPOLLIN) {
                     printf("epoll in\n");
@@ -167,7 +172,8 @@ void listen_loop(int socket_fd, int epoll_fd) {
                             continue;
                         }
                         if (host_conn[id % MAX_ROOMS]->right != -1) {
-                            printf("Reject: this ID is used in another connection\n");
+                            printf("Reject: this ID is used in another "
+                                   "connection\n");
                             close(conn->fd);
                             free(conn);
                             continue;
@@ -205,13 +211,15 @@ void listen_loop(int socket_fd, int epoll_fd) {
                 char buf[1024] = {0};
                 int recv_size = recv(conn->left, buf, 1024, 0);
                 if (recv_size <= 0) {
-                    perror("recv 2");
-                    printf("Closing connection between %d and %d\n", conn->left, conn->right);
-                    host_conn[conn->id] = NULL;
-                    client_conn[conn->id] = NULL;
+                    printf("Closing connection between %d and %d\n", conn->left,
+                           conn->right);
+                    int id = conn->id;
                     close(conn->left);
                     close(conn->right);
-                    free(conn);
+                    free(host_conn[id]);
+                    free(client_conn[id]);
+                    host_conn[id] = NULL;
+                    client_conn[id] = NULL;
                     break;
                 }
                 printf("Message: %s\n", buf);
