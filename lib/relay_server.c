@@ -230,6 +230,17 @@ void listen_loop(int socket_fd, int epoll_fd, int signal_fd) {
                         host_conn[id % MAX_ROOMS]->right_addr = conn->left_addr;
                         client_conn[id % MAX_ROOMS]->right_addr =
                             host_conn[id % MAX_ROOMS]->left_addr;
+                        
+                        struct itimerspec newValue, oldValue;
+                        struct timespec ts;
+                        ts.tv_sec = 0;
+                        ts.tv_nsec = 0;
+                        newValue.it_value = ts;
+                        newValue.it_interval = ts;
+                        if (timerfd_settime(host_conn[id % MAX_ROOMS]->tfd, 0, &newValue, &oldValue) < 0) {
+                            perror("timerfd_settime");
+                            break;
+                        }
 
                         int ls = send(
                             host_conn[id % MAX_ROOMS]->left,
@@ -251,12 +262,13 @@ void listen_loop(int socket_fd, int epoll_fd, int signal_fd) {
                     }
                 }
             } else {
-                if (tfds[conn->tfd % MAX_ROOMS] == 1) {
-                    // timer triggered (false)
-                    printf("Non-actual timer triggered\n");
-                    tfds[conn->tfd % MAX_ROOMS] == 0;
-                    continue;
-                }
+                // if (tfds[conn->tfd % MAX_ROOMS]) {
+                //     // timer triggered (false)
+                //     printf("Non-actual timer triggered\n");
+                //     tfds[conn->tfd % MAX_ROOMS] = 0;
+                //     continue;
+                // }
+                
                 // RECEIVE FROM KNOWN ROOM
                 printf("Known room\n");
                 char buf[1024] = {0};
