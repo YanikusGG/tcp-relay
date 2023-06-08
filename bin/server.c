@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
     int ep_ctl = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock_fd, &ev);
     if (ep_ctl < 0) {
         perror("epoll_ctl");
-        return NULL;
+        return 1;
     }
 
     listen_loop(sock_fd, epoll_fd);

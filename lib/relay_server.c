@@ -9,14 +9,12 @@
 #include <stdlib.h>
 
 #include "relay_server.h"
-#define MAX_ROOMS 65535
+#define MAX_ROOMS 10000
 
 conn_t* host_conn[MAX_ROOMS];
 conn_t* client_conn[MAX_ROOMS];
 
 int create_server(char *port) {
-    memset(host_conn, sizeof(host_conn), 0);
-    memset(client_conn, sizeof(client_conn), 0);
     struct addrinfo *res = NULL;
     struct addrinfo hint = {
         .ai_family = AF_UNSPEC,
@@ -67,6 +65,7 @@ void listen_loop(int socket_fd, int epoll_fd) {
         for (int ev_idx = 0; ev_idx < event_cnt; ev_idx++) {
             if (events[ev_idx].data.fd == socket_fd) {
                 // new connection.
+                printf("new connection\n");
                 socklen_t len = sizeof(addr_tcp);
                 int client_conn = accept(socket_fd, (struct sockaddr *)&addr_tcp, &len);
                 if (client_conn < 0) {
@@ -76,13 +75,13 @@ void listen_loop(int socket_fd, int epoll_fd) {
                 // set it as non-blocking
                 int flags = fcntl(client_conn, F_GETFL, 0);
                 if (flags < 0) {
-                    perror("fcntl");
+                    perror("fcntl 1");
                     break;
                 }
                 flags |= O_NONBLOCK;
                 int fc_i = fcntl(client_conn, F_SETFL, flags);
                 if (fc_i < 0) {
-                    perror("fcntl");
+                    perror("fcntl 2");
                     break;
                 }
                 conn_t *conn = malloc(sizeof(conn_t));
@@ -97,7 +96,8 @@ void listen_loop(int socket_fd, int epoll_fd) {
                     perror("epoll_ctl");
                     break;
                 }
-
+            } else {
+                ev = events[ev_idx];
             }
             conn_t *conn = (conn_t*)(ev.data.ptr);
             printf("%d %d %d\n", conn->fd, conn->left, conn->right);
@@ -105,20 +105,24 @@ void listen_loop(int socket_fd, int epoll_fd) {
                 if (events[ev_idx].events == EPOLLIN) {
                     printf("epoll in\n");
                     char buf[1024];
-                    int ret_i = recv(conn->fd, buf, sizeof(buf), 0);
-                    if (ret_i < 0) {
-                        perror("recv");
+                    if (recv(conn->fd, buf, 1024, 0) < 0) {
+                        perror("recv 1");
                         break;
                     }
+                    union {
+                        int id;
+                        char str[4];
+                    } union_id;
+                    memcpy(union_id.str, buf + 1, 4);
                     char flag = buf[0];
-                    int id = *(int*)(buf + 1);
+                    int id = union_id.id;
                     if (flag == 1) {
                         // REGISTER
-                        printf("Register %d \n", id % MAX_ROOMS);
+                        printf("Register %d (%d)\n", id % MAX_ROOMS, id);
                         host_conn[id % MAX_ROOMS] = conn;
                     } else {
                         // CONNECT
-                        printf("Connect %d \n", id % MAX_ROOMS);
+                        printf("Connect %d (%d)\n", id % MAX_ROOMS, id);
                         client_conn[id % MAX_ROOMS] = conn;
                         host_conn[id % MAX_ROOMS]->right = conn->left;
                         client_conn[id % MAX_ROOMS]->right = host_conn[id % MAX_ROOMS]->left;
@@ -127,19 +131,34 @@ void listen_loop(int socket_fd, int epoll_fd) {
 
                         int ls = send(host_conn[id % MAX_ROOMS]->left, &host_conn[id % MAX_ROOMS]->right_addr, sizeof(host_conn[id % MAX_ROOMS]->right_addr), 0);
                         if (ls < 0) {
-                            perror("send");
-                            return 1;
+                            perror("send 1");
+                            return;
                         }
 
                         int rs = send(host_conn[id % MAX_ROOMS]->right, &host_conn[id % MAX_ROOMS]->left_addr, sizeof(host_conn[id % MAX_ROOMS]->left_addr), 0);
                         if (rs < 0) {
-                            perror("send");
-                            return 1;
+                            perror("send 2");
+                            return;
                         }
                     }
                 }
             } else {
                 // RECEIVE FROM KNOWN ROOM
+                printf("known room\n");
+                char buf[1024] = {0};
+                int recv_size = recv(conn->left, buf, 1024, 0);
+                if (recv_size < 0) {
+                    perror("recv 2");
+                    break;
+                }
+                printf("recv_size: %d\n", recv_size);
+                printf("message: %s\n", buf);
+                int rs = send(conn->right, buf, recv_size, 0);
+                if (rs < 0) {
+                    perror("send 3");
+                    return;
+                }
+                printf("sent from %d to %d\n", conn->left, conn->right);
             }
         }
     }

@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "relay_client.h"
 
@@ -59,12 +60,22 @@ int main(int argc, char *argv[]) {
 
         while (1) {
             char buff[BUFF_SIZE] = {0};
+            int recv_size = recv(sock, buff, BUFF_SIZE, 0);
+            if (recv_size < 0) {
+                perror("recv");
+                break;
+            }
+            printf("recv_size: %d\n", recv_size);
+            printf("message: %s\n", buff);
+
+            printf("READ\n");
             int cnt = scanf("%s", buff);
             if (cnt <= 0) {
                 break;
             }
+            int len = strlen(buff);
 
-            if (write(sock, buff, cnt) != cnt) {
+            if (write(sock, buff, len) != len) {
                 fprintf(stderr, "write failed\n");
                 freeaddrinfo(res);
                 free(peer_addr);
@@ -98,13 +109,23 @@ int main(int argc, char *argv[]) {
             if (cnt <= 0) {
                 break;
             }
+            int len = strlen(buff);
 
-            if (write(sock, buff, cnt) != cnt) {
+            if (write(sock, buff, len) != len) {
                 fprintf(stderr, "write failed\n");
                 freeaddrinfo(res);
                 free(peer_addr);
                 return 1;
             }
+
+            int recv_size = recv(sock, buff, BUFF_SIZE, 0);
+            if (recv_size < 0) {
+                perror("recv");
+                break;
+            }
+            buff[recv_size] = 0;
+            printf("recv_size: %d\n", recv_size);
+            printf("message: %s\n", buff);
         }
         // while (1) {
         //     char buff[BUFF_SIZE] = {0};
