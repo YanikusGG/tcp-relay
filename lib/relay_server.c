@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "relay_server.h"
 
@@ -15,7 +16,34 @@
 conn_t *host_conn[MAX_ROOMS];
 conn_t *client_conn[MAX_ROOMS];
 
+void on_signal(int sig) {
+    if (sig == SIGINT || sig == SIGTERM) {
+        for (int i=0; i<MAX_ROOMS; i++) {
+            if (host_conn[i]) {
+                if (host_conn[i]->fd) {
+                    close(host_conn[i]->fd);
+                }
+                free(host_conn[i]);
+            }
+            if (client_conn[i]) {
+                if (client_conn[i]->fd) {
+                    close(client_conn[i]->fd);
+                }
+                free(client_conn[i]);
+            }
+        }
+        exit(0);
+    }
+}
+
 int create_server(char *port) {
+    struct sigaction sa = {
+        .sa_handler = on_signal,
+        .sa_flags = SA_RESTART,
+    };
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+
     struct addrinfo *res = NULL;
     struct addrinfo hint = {
         .ai_family = AF_UNSPEC,
@@ -65,7 +93,7 @@ void listen_loop(int socket_fd, int epoll_fd) {
         }
         for (int ev_idx = 0; ev_idx < event_cnt; ev_idx++) {
             if (events[ev_idx].data.fd == socket_fd) {
-                // new connection.
+                // new connection
                 printf("new connection\n");
                 socklen_t len = sizeof(addr_tcp);
                 int client_conn =
@@ -103,7 +131,7 @@ void listen_loop(int socket_fd, int epoll_fd) {
                 ev = events[ev_idx];
             }
             conn_t *conn = (conn_t *)(ev.data.ptr);
-            printf("%d %d %d\n", conn->fd, conn->left, conn->right);
+            printf("event fd=%d left=%d right=%d\n", conn->fd, conn->left, conn->right);
             if (conn->right == -1) {
                 if (events[ev_idx].events == EPOLLIN) {
                     printf("epoll in\n");
@@ -155,21 +183,20 @@ void listen_loop(int socket_fd, int epoll_fd) {
                 }
             } else {
                 // RECEIVE FROM KNOWN ROOM
-                printf("known room\n");
+                printf("Known room\n");
                 char buf[1024] = {0};
                 int recv_size = recv(conn->left, buf, 1024, 0);
                 if (recv_size < 0) {
                     perror("recv 2");
                     break;
                 }
-                printf("recv_size: %d\n", recv_size);
-                printf("message: %s\n", buf);
+                printf("Message: %s\n", buf);
                 int rs = send(conn->right, buf, recv_size, 0);
                 if (rs < 0) {
                     perror("send 3");
                     return;
                 }
-                printf("sent from %d to %d\n", conn->left, conn->right);
+                printf("Sent from %d to %d\n", conn->left, conn->right);
             }
         }
     }

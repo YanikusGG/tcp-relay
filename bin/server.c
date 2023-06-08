@@ -6,6 +6,9 @@
 
 #include "relay_server.h"
 
+/*
+ * Run ./server 8081
+ */
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         perror("argc");
@@ -33,5 +36,6 @@ int main(int argc, char *argv[]) {
     }
 
     listen_loop(sock_fd, epoll_fd);
-    return 0;
+    perror("listen_loop ends");
+    return 1;
 }

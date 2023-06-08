@@ -62,10 +62,10 @@ int main(int argc, char *argv[]) {
                 perror("recv");
                 break;
             }
-            printf("recv_size: %d\n", recv_size);
-            printf("message: %s\n", buff);
+            printf("New Message:\n");
+            printf("%s\n", buff);
 
-            printf("READ\n");
+            printf("Waiting for input:\n");
             int cnt = scanf("%s", buff);
             if (cnt <= 0) {
                 break;
@@ -85,6 +85,7 @@ int main(int argc, char *argv[]) {
         return 0;
     } else if (argv[3][0] == 'c') {
         int id;
+        printf("Enter ID for connection:\n");
         if (scanf("%d", &id) != 1) {
             fprintf(stderr, "scanf error\n");
             freeaddrinfo(res);
@@ -100,7 +101,7 @@ int main(int argc, char *argv[]) {
         }
 
         while (1) {
-            printf("READ\n");
+            printf("Waiting for input:\n");
             char buff[BUFF_SIZE] = {0};
             int cnt = scanf("%s", buff);
             if (cnt <= 0) {
@@ -121,17 +122,9 @@ int main(int argc, char *argv[]) {
                 break;
             }
             buff[recv_size] = 0;
-            printf("recv_size: %d\n", recv_size);
-            printf("message: %s\n", buff);
+            printf("New Message:\n");
+            printf("%s\n", buff);
         }
-        // while (1) {
-        //     char buff[BUFF_SIZE] = {0};
-        //     int cnt = read(sock, buff, BUFF_SIZE);
-        //     if (cnt <= 0) {
-        //         fprintf(stderr, "INFO::Connect client finished reading\n");
-        //         break;
-        //     }
-        // }
 
         freeaddrinfo(res);
         free(peer_addr);
