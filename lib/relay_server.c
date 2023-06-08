@@ -185,7 +185,7 @@ void listen_loop(int socket_fd, int epoll_fd, int signal_fd) {
                         }
                         struct itimerspec newValue, oldValue;
                         struct timespec ts;
-                        ts.tv_sec = 10;
+                        ts.tv_sec = 60;
                         ts.tv_nsec = 0;
                         struct timespec ts_inter;
                         ts_inter.tv_sec = 0;
