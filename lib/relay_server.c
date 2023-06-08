@@ -7,6 +7,7 @@
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
 #include <sys/socket.h>
+#include <sys/timerfd.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -67,6 +68,8 @@ void listen_loop(int socket_fd, int epoll_fd, int signal_fd) {
         return;
     }
 
+    int tfds[MAX_ROOMS] = {0};
+
     while (1) {
         int event_cnt = epoll_wait(epoll_fd, events, 16, -1);
         if (event_cnt < 0) {
@@ -76,6 +79,7 @@ void listen_loop(int socket_fd, int epoll_fd, int signal_fd) {
         for (int ev_idx = 0; ev_idx < event_cnt; ev_idx++) {
             if (events[ev_idx].data.fd == signal_fd) {
                 // signal to terminate
+                printf("Start terminating\n");
                 for (int i = 0; i < MAX_ROOMS; i++) {
                     if (host_conn[i]) {
                         if (host_conn[i]->fd) {
@@ -139,6 +143,16 @@ void listen_loop(int socket_fd, int epoll_fd, int signal_fd) {
             printf("event fd=%d left=%d right=%d\n", conn->fd, conn->left,
                    conn->right);
             if (conn->right == -1) {
+                if (tfds[conn->tfd % MAX_ROOMS] == 1) {
+                    // timer triggered (true)
+                    tfds[conn->tfd % MAX_ROOMS] == 0;
+                    int id = conn->id;
+                    printf("Timer of ID %d is over\n", id);
+                    close(conn->left);
+                    free(host_conn[id]);
+                    host_conn[id] = NULL;
+                    continue;
+                }
                 if (events[ev_idx].events == EPOLLIN) {
                     printf("epoll in\n");
                     char buf[1024];
@@ -162,6 +176,37 @@ void listen_loop(int socket_fd, int epoll_fd, int signal_fd) {
                             continue;
                         }
                         host_conn[id % MAX_ROOMS] = conn;
+
+                        int tfd;
+                        if ((tfd = timerfd_create(CLOCK_MONOTONIC,
+                                                  TFD_NONBLOCK)) < 0) {
+                            perror("timerfd_create");
+                            break;
+                        }
+                        struct itimerspec newValue, oldValue;
+                        struct timespec ts;
+                        ts.tv_sec = 10;
+                        ts.tv_nsec = 0;
+                        struct timespec ts_inter;
+                        ts_inter.tv_sec = 0;
+                        ts_inter.tv_nsec = 0;
+                        newValue.it_value = ts;
+                        newValue.it_interval = ts_inter;
+                        if (timerfd_settime(tfd, 0, &newValue, &oldValue) < 0) {
+                            perror("timerfd_settime");
+                            break;
+                        }
+                        tfds[tfd % MAX_ROOMS] = 1;
+                        struct epoll_event tfd_event;
+                        tfd_event.events = EPOLLIN | EPOLLET;
+                        tfd_event.data.ptr = conn;
+                        conn->tfd = tfd;
+                        int ep_ctl =
+                            epoll_ctl(epoll_fd, EPOLL_CTL_ADD, tfd, &tfd_event);
+                        if (ep_ctl < 0) {
+                            perror("epoll_ctl");
+                            break;
+                        }
                     } else {
                         // CONNECT
                         printf("Connect ID %d (%d)\n", id % MAX_ROOMS, id);
@@ -206,6 +251,12 @@ void listen_loop(int socket_fd, int epoll_fd, int signal_fd) {
                     }
                 }
             } else {
+                if (tfds[conn->tfd % MAX_ROOMS] == 1) {
+                    // timer triggered (false)
+                    printf("Non-actual timer triggered\n");
+                    tfds[conn->tfd % MAX_ROOMS] == 0;
+                    continue;
+                }
                 // RECEIVE FROM KNOWN ROOM
                 printf("Known room\n");
                 char buf[1024] = {0};
