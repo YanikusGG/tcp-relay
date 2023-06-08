@@ -5,6 +5,7 @@
 typedef struct {
     int fd;
     int left, right;
+    int id;
     struct sockaddr_in left_addr, right_addr;
 } conn_t;
 

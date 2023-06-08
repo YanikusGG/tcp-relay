@@ -119,6 +119,7 @@ void listen_loop(int socket_fd, int epoll_fd) {
                 conn->left_addr = addr_tcp;
                 conn->right = -1;
                 conn->fd = client_conn;
+                conn->id = -1;
                 ev.events = EPOLLIN | EPOLLET;
                 ev.data.ptr = conn;
                 int ep_ctl =
@@ -147,21 +148,26 @@ void listen_loop(int socket_fd, int epoll_fd) {
                     memcpy(union_id.str, buf + 1, 4);
                     char flag = buf[0];
                     int id = union_id.id;
+                    conn->id = id % MAX_ROOMS;
                     if (flag == 1) {
                         // REGISTER
-                        printf("Register %d (%d)\n", id % MAX_ROOMS, id);
+                        printf("Register ID %d (%d)\n", id % MAX_ROOMS, id);
                         if (host_conn[id % MAX_ROOMS]) {
                             printf("Reject: this ID is already registered\n");
-                            close(conn->fd);
-                            free(conn);
                             continue;
                         }
                         host_conn[id % MAX_ROOMS] = conn;
                     } else {
                         // CONNECT
-                        printf("Connect %d (%d)\n", id % MAX_ROOMS, id);
-                        if (host_conn[id % MAX_ROOMS]) {
+                        printf("Connect ID %d (%d)\n", id % MAX_ROOMS, id);
+                        if (!host_conn[id % MAX_ROOMS]) {
                             printf("Reject: this ID wasn't registered\n");
+                            close(conn->fd);
+                            free(conn);
+                            continue;
+                        }
+                        if (host_conn[id % MAX_ROOMS]->right != -1) {
+                            printf("Reject: this ID is used in another connection\n");
                             close(conn->fd);
                             free(conn);
                             continue;
@@ -200,7 +206,9 @@ void listen_loop(int socket_fd, int epoll_fd) {
                 int recv_size = recv(conn->left, buf, 1024, 0);
                 if (recv_size <= 0) {
                     perror("recv 2");
-                    printf("Closing connection between %d and %d\n", conn->left, conn->right)
+                    printf("Closing connection between %d and %d\n", conn->left, conn->right);
+                    host_conn[conn->id] = NULL;
+                    client_conn[conn->id] = NULL;
                     close(conn->left);
                     close(conn->right);
                     free(conn);
