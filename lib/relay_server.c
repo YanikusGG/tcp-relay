@@ -150,10 +150,22 @@ void listen_loop(int socket_fd, int epoll_fd) {
                     if (flag == 1) {
                         // REGISTER
                         printf("Register %d (%d)\n", id % MAX_ROOMS, id);
+                        if (host_conn[id % MAX_ROOMS]) {
+                            printf("Reject: this ID is already registered\n");
+                            close(conn->fd);
+                            free(conn);
+                            continue;
+                        }
                         host_conn[id % MAX_ROOMS] = conn;
                     } else {
                         // CONNECT
                         printf("Connect %d (%d)\n", id % MAX_ROOMS, id);
+                        if (host_conn[id % MAX_ROOMS]) {
+                            printf("Reject: this ID wasn't registered\n");
+                            close(conn->fd);
+                            free(conn);
+                            continue;
+                        }
                         client_conn[id % MAX_ROOMS] = conn;
                         host_conn[id % MAX_ROOMS]->right = conn->left;
                         client_conn[id % MAX_ROOMS]->right =
@@ -186,8 +198,12 @@ void listen_loop(int socket_fd, int epoll_fd) {
                 printf("Known room\n");
                 char buf[1024] = {0};
                 int recv_size = recv(conn->left, buf, 1024, 0);
-                if (recv_size < 0) {
+                if (recv_size <= 0) {
                     perror("recv 2");
+                    printf("Closing connection between %d and %d\n", conn->left, conn->right)
+                    close(conn->left);
+                    close(conn->right);
+                    free(conn);
                     break;
                 }
                 printf("Message: %s\n", buf);
