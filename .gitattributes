@@ -5,3 +5,4 @@
 .gitignore eol=lf
 .gitattributes eol=lf
 .Makefile eol=lf
+.clang-format eol=lf

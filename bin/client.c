@@ -2,10 +2,10 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <string.h>
 
 #include "relay_client.h"
 
@@ -15,7 +15,7 @@
  * Run ./client 127.0.0.1 8081 <type>
  * a for accept version
  * c for connect version
-*/
+ */
 int main(int argc, char *argv[]) {
     if (argc < 4) {
         perror("argc");
@@ -24,10 +24,7 @@ int main(int argc, char *argv[]) {
 
     struct addrinfo *res = NULL;
     int gai_err;
-    struct addrinfo hint = {
-        .ai_family = AF_INET,
-        .ai_socktype = SOCK_STREAM
-    };
+    struct addrinfo hint = {.ai_family = AF_INET, .ai_socktype = SOCK_STREAM};
 
     if ((gai_err = getaddrinfo(argv[1], argv[2], &hint, &res))) {
         printf("%s\n", gai_strerror(gai_err));

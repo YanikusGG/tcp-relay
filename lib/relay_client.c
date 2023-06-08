@@ -1,12 +1,11 @@
 #include "relay_client.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <string.h>
-
-#include <errno.h>
 
 #define CONNECT_FLAG 0
 #define REGISTER_FLAG 1
@@ -43,7 +42,8 @@ int relay_accept(int fd, struct sockaddr *peer_addr) {
     return 0;
 }
 
-int relay_connect(int fd, int connection_id, const struct sockaddr *relay_addr, struct sockaddr *peer_addr) {
+int relay_connect(int fd, int connection_id, const struct sockaddr *relay_addr,
+                  struct sockaddr *peer_addr) {
     char buff[REGISTER_MESSAGE_LEN];
     buff[0] = CONNECT_FLAG;
     union {

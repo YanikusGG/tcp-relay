@@ -1,12 +1,10 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/epoll.h>
 #include <unistd.h>
 
-#include <sys/epoll.h>
-
 #include "relay_server.h"
-
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {

@@ -1,6 +1,6 @@
+#include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <netdb.h>
 
 typedef struct {
     int fd;
